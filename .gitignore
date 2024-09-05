@@ -11,3 +11,4 @@ out/*
 *.log
 *.spec
 log.txt
+fix.py
