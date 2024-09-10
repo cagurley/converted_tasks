@@ -9,4 +9,4 @@ Original repositories included are:
 * ~~`file_modifier`~~
 * ~~`fsa`~~
 * ~~`orn_fetch`~~
-* ~~`score_fetch`~~
+* `score_fetch`
