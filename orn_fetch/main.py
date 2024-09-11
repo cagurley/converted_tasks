@@ -23,7 +23,6 @@ def main():
                 comevo.end(*db_hooks)
         with open('last.dat', 'w') as file:
             file.write(dt.datetime.strftime(current, '%Y-%m-%dT%H:%M:%S%z') + '\n')
-        current = dt.datetime.now().astimezone()
         if os.name == 'nt':
             os.system('cls')
         else:
