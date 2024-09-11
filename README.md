@@ -8,5 +8,5 @@ Original repositories included are:
 * ~~`external_query_fetcher`~~
 * ~~`file_modifier`~~
 * ~~`fsa`~~
-* ~~`orn_fetch`~~
+* `orn_fetch`
 * `score_fetch`
