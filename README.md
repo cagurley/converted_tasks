@@ -6,7 +6,7 @@ Conversion in progress; repos not yet converted shown in strikethrough.
 Original repositories included are:
 
 * `external_query_fetcher`
-* ~~`file_modifier`~~
+* `file_modifier`
 * ~~`fsa`~~
 * `orn_fetch`
 * `score_fetch`
