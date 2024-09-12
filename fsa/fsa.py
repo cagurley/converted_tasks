@@ -273,121 +273,115 @@ def sftp_dir_move_from(pysftp_conn, conndir, opdir):
     return None
 
 
-def main():
-    # Main try clause
+# Main try clause
+try:
+    log('Agent booted from disk at {}'.format(str(dt.datetime.now())))
+    _conndir = []
+    _join = []
+    _opdir = []
+    start = dt.datetime.now()
+
+    log('Cycle started at {}'.format(str(start)))
+    print('\nScanning initiated! Timestamp: {}'.format(str(start)))
     try:
-        log('Agent booted from disk at {}'.format(str(dt.datetime.now())))
-        while True:
-            _conndir = []
-            _join = []
-            _opdir = []
-            start = dt.datetime.now()
+        with open('./ref/CONNS.csv', newline='') as connfile:
+            reader = csv.reader(connfile)
+            print('Examining connections...')
+            for index, row in enumerate(reader):
+                if len(row) != 5:
+                    print('Incorrect number of arguments for row {}! Discarded!'.format(index + 1))
+                else:
+                    row[0] = row[0].lower()
+                    row[1] = row[1].lower()
+                    if row[0] not in ('local', 'sftp'):
+                        print('Invalid protocol for row {}! Discarded!'.format(index + 1))
+                    elif not row[4].isdigit():
+                        print('Invalid port number for row {}! Discarded!'.format(index + 1))
+                    else:
+                        row[4] = int(row[4])
+                        _join.append(index + 1)
+                        _conndir.append(ConnDirectives(index + 1, *row))
+        with open('./ref/OPS.csv', newline='') as opfile:
+            reader = csv.reader(opfile)
+            print('Examining operations...')
+            for index, row in enumerate(reader):
+                if len(row) < 5:
+                    print('Insufficient number of arguments for row {}! Discarded!'.format(index + 1))
+                elif not row[0].isdigit():
+                    print('Invalid connection reference for row {}! Discarded!'.format(index + 1))
+                elif row[1].lower() not in ('dir', 'file'):
+                    print('Invalid target type for row {}! Discarded!'.format(index + 1))
+                else:
+                    row[0] = int(row[0])
+                    row[1] = row[1].lower()
+                    row[3] = row[3].lower()
+                    if row[0] not in _join:
+                        print('Cannot find referenced connection for row {}! Discarded!'.format(index + 1))
+                    else:
+                        opdir = OpDirectives(*row)
+                        if not opdir.validate():
+                            print('Specified operation is invalid for row {}! Discarded!'.format(index + 1))
+                        else:
+                            _opdir.append(opdir)
+    except IOError:
+        log("IOError encountered attempting to open reference files `./ref/CONNS.csv` and `./ref/OPS.csv`!")
+        print("Error encountered attempting to open reference files; check to ensure they are located at `./ref`.")
 
-            log('Cycle started at {}'.format(str(start)))
-            print('\nScanning initiated! Timestamp: {}'.format(str(start)))
+    if not _opdir:
+        print('No valid operations found! Operation aborted!')
+    else:
+        for conndir in _conndir:
+            for opdir in _opdir:
+                if conndir.ref == opdir.conn_ref:
+                    conndir.add_op(opdir)
+        _opdir = []
+        conns_with_ops = []
+        for conndir in _conndir:
+            if conndir.ops:
+                conns_with_ops.append(conndir)
+        _conndir = conns_with_ops
+
+        for conndir in _conndir:
             try:
-                with open('./ref/CONNS.csv', newline='') as connfile:
-                    reader = csv.reader(connfile)
-                    print('Examining connections...')
-                    for index, row in enumerate(reader):
-                        if len(row) != 5:
-                            print('Incorrect number of arguments for row {}! Discarded!'.format(index + 1))
-                        else:
-                            row[0] = row[0].lower()
-                            row[1] = row[1].lower()
-                            if row[0] not in ('local', 'sftp'):
-                                print('Invalid protocol for row {}! Discarded!'.format(index + 1))
-                            elif not row[4].isdigit():
-                                print('Invalid port number for row {}! Discarded!'.format(index + 1))
-                            else:
-                                row[4] = int(row[4])
-                                _join.append(index + 1)
-                                _conndir.append(ConnDirectives(index + 1, *row))
-                with open('./ref/OPS.csv', newline='') as opfile:
-                    reader = csv.reader(opfile)
-                    print('Examining operations...')
-                    for index, row in enumerate(reader):
-                        if len(row) < 5:
-                            print('Insufficient number of arguments for row {}! Discarded!'.format(index + 1))
-                        elif not row[0].isdigit():
-                            print('Invalid connection reference for row {}! Discarded!'.format(index + 1))
-                        elif row[1].lower() not in ('dir', 'file'):
-                            print('Invalid target type for row {}! Discarded!'.format(index + 1))
-                        else:
-                            row[0] = int(row[0])
-                            row[1] = row[1].lower()
-                            row[3] = row[3].lower()
-                            if row[0] not in _join:
-                                print('Cannot find referenced connection for row {}! Discarded!'.format(index + 1))
-                            else:
-                                opdir = OpDirectives(*row)
-                                if not opdir.validate():
-                                    print('Specified operation is invalid for row {}! Discarded!'.format(index + 1))
-                                else:
-                                    _opdir.append(opdir)
-            except IOError:
-                log("IOError encountered attempting to open reference files `./ref/CONNS.csv` and `./ref/OPS.csv`!")
-                print("Error encountered attempting to open reference files; check to ensure they are located at `./ref`.")
+                if conndir.protocol == 'sftp':
+                    with pysftp.Connection(
+                            host=conndir.host,
+                            username=conndir.username,
+                            password=conndir.password,
+                            port=conndir.port) as conn:
+                        conndir.set_access_time()
+                        log("Connection with host '{}' established at {}".format(conndir.host, conndir.access_time))
+                        for opdir in conndir.ops:
+                            opdir.args = format_args(opdir.args, start)
+                            choose_func(conn, conndir, opdir)
+                        log("Connection with host '{}' terminated at {}".format(conndir.host, str(dt.datetime.now())))
+                elif conndir.protocol == 'local':
+                        conndir.set_access_time()
+                        log("Local host operations begun at at {}".format(conndir.access_time))
+                        for opdir in conndir.ops:
+                            opdir.args = format_args(opdir.args, start)
+                            choose_func(conn, conndir, opdir)
+                        log("Local host operations completed at {}".format(str(dt.datetime.now())))
+                conndir.cycle_times()
+            except pysftp.SSHException:
+                # Note that this doesn't handle subsequent AttributeError
+                # thrown by context manager. Needs future fix.
+                print('SSH exception for host {} raised! Check for incorrect connection directives or missing key in `~./.ssh/known_hosts`.'.format(conndir.host))
+                continue
+            except pysftp.ConnectionException as ce:
+                log("ConnectionException encountered during connection: " + str(ce))
+                print("ConnectionException encountered during connection; see log for details.")
+            except IOError as ioe:
+                log("IOError encountered during connection: " + str(ioe))
+                print("IOError encountered during connection; see log for details.")
+            except EOFError as eofe:
+                log("EOFError encountered during connection: " + str(eofe))
+                print("EOFError encountered during connection; see log for details.")
 
-            if not _opdir:
-                print('No valid operations found! Operation aborted!')
-            else:
-                for conndir in _conndir:
-                    for opdir in _opdir:
-                        if conndir.ref == opdir.conn_ref:
-                            conndir.add_op(opdir)
-                _opdir = []
-                conns_with_ops = []
-                for conndir in _conndir:
-                    if conndir.ops:
-                        conns_with_ops.append(conndir)
-                _conndir = conns_with_ops
-
-                for conndir in _conndir:
-                    try:
-                        if conndir.protocol == 'sftp':
-                            with pysftp.Connection(
-                                    host=conndir.host,
-                                    username=conndir.username,
-                                    password=conndir.password,
-                                    port=conndir.port) as conn:
-                                conndir.set_access_time()
-                                log("Connection with host '{}' established at {}".format(conndir.host, conndir.access_time))
-                                for opdir in conndir.ops:
-                                    opdir.args = format_args(opdir.args, start)
-                                    choose_func(conn, conndir, opdir)
-                                log("Connection with host '{}' terminated at {}".format(conndir.host, str(dt.datetime.now())))
-                        elif conndir.protocol == 'local':
-                                conndir.set_access_time()
-                                log("Local host operations begun at at {}".format(conndir.access_time))
-                                for opdir in conndir.ops:
-                                    opdir.args = format_args(opdir.args, start)
-                                    choose_func(conn, conndir, opdir)
-                                log("Local host operations completed at {}".format(str(dt.datetime.now())))
-                        conndir.cycle_times()
-                    except pysftp.SSHException:
-                        # Note that this doesn't handle subsequent AttributeError
-                        # thrown by context manager. Needs future fix.
-                        print('SSH exception for host {} raised! Check for incorrect connection directives or missing key in `~./.ssh/known_hosts`.'.format(conndir.host))
-                        continue
-                    except pysftp.ConnectionException as ce:
-                        log("ConnectionException encountered during connection: " + str(ce))
-                        print("ConnectionException encountered during connection; see log for details.")
-                    except IOError as ioe:
-                        log("IOError encountered during connection: " + str(ioe))
-                        print("IOError encountered during connection; see log for details.")
-                    except EOFError as eofe:
-                        log("EOFError encountered during connection: " + str(eofe))
-                        print("EOFError encountered during connection; see log for details.")
-
-            if os.name == 'nt':
-                os.system('cls')
-            else:
-                os.system('clear')
-    except KeyboardInterrupt:
-        log('Agent terminated via keyboard interrupt at {}'.format(str(dt.datetime.now())))
-        print('Agent activity interrupted! Resume when ready.')
-
-
-if __name__ == '__main__':
-    main()
+    if os.name == 'nt':
+        os.system('cls')
+    else:
+        os.system('clear')
+except KeyboardInterrupt:
+    log('Agent terminated via keyboard interrupt at {}'.format(str(dt.datetime.now())))
+    print('Agent activity interrupted! Resume when ready.')

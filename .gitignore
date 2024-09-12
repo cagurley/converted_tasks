@@ -6,6 +6,7 @@ build/*
 dist/*
 img
 out/*
+*/ref/*
 *.dat
 *.json
 *.log
