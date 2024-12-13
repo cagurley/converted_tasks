@@ -4,16 +4,18 @@ Query module
 
 QUERIES = {
     "test_scores_to_ps": """
-        declare @start datetime = convert(datetime, dateadd(d, -1, convert(date, getdate())));
         declare @end datetime = convert(datetime, convert(date, getdate()));
+        declare @start datetime = dateadd(d, -1, @end);
         with cte as (
           select
             t.*,
-            (select top(1) [value] from dbo.getFieldExportTable(t.[id], 'ug_ls_data_source')) as [ls_data_source],
-            f.[value] as [emplid]
+            coalesce(lpds.[export], 'AO') as [ls_data_source],
+            fe.[value] as [emplid]
           from [test] as t
           inner join [person] as p on t.[record] = p.[id]
-          inner join [field] as f on p.[id] = f.[record] and f.[field] = 'emplid'
+          inner join [field] as fe on p.[id] = fe.[record] and fe.[field] = 'emplid'
+          left outer join [field] as fds on t.[id] = fds.[record] and fds.[field] = 'ug_ls_data_source'
+          left outer join [lookup.prompt] as lpds on fds.[prompt] = lpds.[id]
           where t.[type] in ('ACCU', 'ACT', 'AP', 'duolingo160', 'IB', 'IELTS', 'KYOTE', 'SATII', 'SATR', 'SEMP', 'TOEFL')
           and t.[confirmed] = 1
           and t.[date] is not null
@@ -28,36 +30,23 @@ QUERIES = {
                 t.[updated] >= @start
                 and t.[updated] < @end
               ) or (
-                f.[timestamp] >= @start
-                and f.[timestamp] < @end
+                fe.[timestamp] >= @start
+                and fe.[timestamp] < @end
               )
             ) or exists (
               select *
-              from [audit]
-              where p.[id] = [record]
+              from [audit] as au
+              where p.[id] = au.[record]
               and (
-                [type] = 'merge'
+                au.[type] = 'merge'
                 or (
-                  t.[id] = [entity]
-                  and [message] like 'Test Score Updated%'
+                  t.[id] = au.[entity]
+                  and au.[message] like 'Test Score Updated%'
                 )
               )
-              and [timestamp] >= @start
-              and [timestamp] < @end
+              and au.[timestamp] >= @start
+              and au.[timestamp] < @end
             )
-          )
-          and (
-            t.[source] not in (
-              select [id]
-              from [source]
-              where [format] in (
-                dbo.toGuidString('1EF6DBCE-CF4D-4DE4-932A-423891FBA9FD'),
-                dbo.toGuidString('BE8DD60A-0271-46C6-861F-815C26D360A2'),
-                dbo.toGuidString('824EC353-0321-4B3C-9BE7-CAA4EF0AFC82'),
-                dbo.toGuidString('0D8658FC-CE3C-4B85-8033-652AD495C58F')
-              )
-            )
-            or t.[source] is null
           )
         )
         select distinct
@@ -66,104 +55,48 @@ QUERIES = {
           t.[test],
           t.[component],
           t.[date],
-          (
-            case
-            when t.[ls_data_source] is null then 'AO'
-            else t.[ls_data_source]
-            end
-          ) as [ls_data_source],
+          t.[ls_data_source],
           t.[score],
           t.[created],
           t.[updated]
         from (
           select
-            [emplid],
-            [record],
-            [id],
+            t.[emplid],
+            t.[record],
+            t.[id],
             (
-              case
-              when [type] = 'AP' then 'APS'
-              when [type] = 'duolingo160' then 'DUO'
-              when [type] = 'SATR' then 'SATI'
-              else [type]
+              case t.[type]
+              when 'AP' then 'APS'
+              when 'duolingo160' then 'DUO'
+              when 'SATR' then 'SATI'
+              else t.[type]
               end
             ) as [test],
             (
-              case
-              when [type] = 'ACT' then 'COMP'
-              when [type] = 'AP' then (
-                case
-                when [subtype] = 'ART' then 'ARH'
-                when [subtype] = 'SAR2' then 'AS2D'
-                when [subtype] = 'SAR3' then 'AS3D'
-                when [subtype] = 'SARD' then 'ASD'
-                when [subtype] = 'BIO' then 'BY'
-                when [subtype] = 'CALA' then 'MAB'
-                when [subtype] = 'CALB' then 'MBC'
-                when [subtype] = 'CALBAB' then 'MABS'
-                when [subtype] = 'CHM' then 'CH'
-                when [subtype] = 'CHI' then 'CN'
-                when [subtype] = 'CGO' then 'GPC'
-                when [subtype] = 'CSA' then 'CSA'
-                when [subtype] = 'CSB' then 'CSAB'
-                when [subtype] = '32' then 'CSP'
-                when [subtype] = 'ELA' then 'ENGC'
-                when [subtype] = 'ELI' then 'ELC'
-                when [subtype] = 'ESC' then 'ENVSC'
-                when [subtype] = 'EUR' then 'EH'
-                when [subtype] = 'FRE' then 'FRA'
-                when [subtype] = 'GER' then 'GM'
-                when [subtype] = 'HGE' then 'HGEO'
-                when [subtype] = 'ITL' then 'IT'
-                when [subtype] = 'JPN' then 'JP'
-                when [subtype] = 'LAT' then 'LTV'
-                when [subtype] = 'MAC' then 'EMA'
-                when [subtype] = 'MIC' then 'EMI'
-                when [subtype] = 'MUS' then 'MST'
-                when [subtype] = 'MUSA' then 'MSTA'
-                when [subtype] = 'MUSNA' then 'MSTNA'
-                when [subtype] = '83' then 'PH1'
-                when [subtype] = '84' then 'PH2'
-                when [subtype] = 'PHB' then 'PHB'
-                when [subtype] = 'MAG' then 'PHCE'
-                when [subtype] = 'MEC' then 'PHCM'
-                when [subtype] = 'PSY' then 'PY'
-                when [subtype] = '23' then 'RES'
-                when [subtype] = '22' then 'SEM'
-                when [subtype] = 'SLA' then 'SPL'
-                when [subtype] = 'SLI' then 'SPLL'
-                when [subtype] = 'STA' then 'STATS'
-                when [subtype] = 'USG' then 'GPU'
-                when [subtype] = 'USH' then 'UH'
-                when [subtype] = 'WHI' then 'WH'
-                else ''
-                end
-              )
-              when [type] = 'duolingo160' then 'OVRLL'
-              when [type] = 'IB' then (
-                select top(1) ilt.[export]
-                from [lookup.test] as ilt
-                where t.[type] = ilt.[id]
-                and t.[subtype] = ilt.[subtype]
-              )
-              when [type] = 'IELTS' then 'TOTAL'
-              when [type] = 'SATR' then 'TOTAL'
-              when [type] = 'TOEFL' then (
-                case [subtype]
+              case t.[type]
+              when 'ACT' then 'COMP'
+              when 'AP' then lt.[export]
+              when 'duolingo160' then 'OVRLL'
+              when 'IB' then lt.[export]
+              when 'IELTS' then 'TOTAL'
+              when 'SATR' then 'TOTAL'
+              when 'TOEFL' then (
+                case t.[subtype]
                 when 'ESS' then 'TOTE'
                 else 'TOTAL'
                 end
               )
-              else [subtype]
+              else t.[subtype]
               end
             ) as [component],
-            [date],
-            (select top(1) [value] from dbo.getFieldExportTable([id], 'ug_ls_data_source')) as [ls_data_source],
-            [total] as [score],
-            [created],
-            [updated],
-            [source]
+            t.[date],
+            t.[ls_data_source],
+            t.[total] as [score],
+            t.[created],
+            t.[updated],
+            t.[source]
           from [cte] as t
+          left outer join [lookup.test] as lt on t.[type] = lt.[id] and t.[subtype] = lt.[subtype]
           where [type] in ('ACCU', 'ACT', 'AP', 'duolingo160', 'IB', 'IELTS', 'KYOTE', 'SATII', 'SATR', 'SEMP', 'TOEFL')
           and [confirmed] = 1
           union
@@ -195,7 +128,7 @@ QUERIES = {
               end
             ),
             [date],
-            (select top(1) [value] from dbo.getFieldExportTable([id], 'ug_ls_data_source')),
+            t.[ls_data_source],
             [score1],
             [created],
             [updated],
@@ -232,7 +165,7 @@ QUERIES = {
               end
             ),
             [date],
-            (select top(1) [value] from dbo.getFieldExportTable([id], 'ug_ls_data_source')),
+            t.[ls_data_source],
             [score2],
             [created],
             [updated],
@@ -269,7 +202,7 @@ QUERIES = {
               end
             ),
             [date],
-            (select top(1) [value] from dbo.getFieldExportTable([id], 'ug_ls_data_source')),
+            t.[ls_data_source],
             [score3],
             [created],
             [updated],
@@ -307,7 +240,7 @@ QUERIES = {
               end
             ),
             [date],
-            (select top(1) [value] from dbo.getFieldExportTable([id], 'ug_ls_data_source')),
+            t.[ls_data_source],
             [score4],
             [created],
             [updated],
@@ -342,7 +275,7 @@ QUERIES = {
               end
             ),
             [date],
-            (select top(1) [value] from dbo.getFieldExportTable([id], 'ug_ls_data_source')),
+            t.[ls_data_source],
             [score5],
             [created],
             [updated],
@@ -376,7 +309,7 @@ QUERIES = {
               end
             ),
             [date],
-            (select top(1) [value] from dbo.getFieldExportTable([id], 'ug_ls_data_source')),
+            t.[ls_data_source],
             [score6],
             [created],
             [updated],
@@ -409,7 +342,7 @@ QUERIES = {
               end
             ),
             [date],
-            (select top(1) [value] from dbo.getFieldExportTable([id], 'ug_ls_data_source')),
+            t.[ls_data_source],
             [score7],
             [created],
             [updated],
@@ -436,7 +369,7 @@ QUERIES = {
               end
             ),
             [date],
-            (select top(1) [value] from dbo.getFieldExportTable([id], 'ug_ls_data_source')),
+            t.[ls_data_source],
             [score8],
             [created],
             [updated],
@@ -463,7 +396,7 @@ QUERIES = {
               end
             ),
             [date],
-            (select top(1) [value] from dbo.getFieldExportTable([id], 'ug_ls_data_source')),
+            t.[ls_data_source],
             [score9],
             [created],
             [updated],
@@ -490,7 +423,7 @@ QUERIES = {
               end
             ),
             [date],
-            (select top(1) [value] from dbo.getFieldExportTable([id], 'ug_ls_data_source')),
+            t.[ls_data_source],
             [score10],
             [created],
             [updated],
@@ -517,7 +450,7 @@ QUERIES = {
               end
             ),
             [date],
-            (select top(1) [value] from dbo.getFieldExportTable([id], 'ug_ls_data_source')),
+            t.[ls_data_source],
             [score11],
             [created],
             [updated],
@@ -544,7 +477,7 @@ QUERIES = {
               end
             ),
             [date],
-            (select top(1) [value] from dbo.getFieldExportTable([id], 'ug_ls_data_source')),
+            t.[ls_data_source],
             [score12],
             [created],
             [updated],
@@ -571,7 +504,7 @@ QUERIES = {
               end
             ),
             [date],
-            (select top(1) [value] from dbo.getFieldExportTable([id], 'ug_ls_data_source')),
+            t.[ls_data_source],
             [score13],
             [created],
             [updated],
@@ -587,7 +520,7 @@ QUERIES = {
             'SATI',
             'PSDA',
             [date],
-            (select top(1) [value] from dbo.getFieldExportTable([id], 'ug_ls_data_source')),
+            t.[ls_data_source],
             [score14],
             [created],
             [updated],
@@ -603,7 +536,7 @@ QUERIES = {
             'SATI',
             'ESR',
             [date],
-            (select top(1) [value] from dbo.getFieldExportTable([id], 'ug_ls_data_source')),
+            t.[ls_data_source],
             [score15],
             [created],
             [updated],
@@ -619,7 +552,7 @@ QUERIES = {
             'SATI',
             'ESA',
             [date],
-            (select top(1) [value] from dbo.getFieldExportTable([id], 'ug_ls_data_source')),
+            t.[ls_data_source],
             [score16],
             [created],
             [updated],
@@ -635,7 +568,7 @@ QUERIES = {
             'SATI',
             'ESW',
             [date],
-            (select top(1) [value] from dbo.getFieldExportTable([id], 'ug_ls_data_source')),
+            t.[ls_data_source],
             [score17],
             [created],
             [updated],
