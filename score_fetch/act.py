@@ -6,7 +6,7 @@ https://github.com/nrccua/file_export_sample
 import json
 import os
 import requests
-from pathlib import PurePath
+from pathlib import Path, PurePath
 from support import *
 from urllib.parse import urlparse, unquote
 
@@ -16,11 +16,7 @@ def fetch():
     :return: None
     """
     try:
-        if 'HOME' in os.environ:
-            hpath = PurePath(os.environ['HOME'])
-        else:
-            hpath = PurePath(os.environ['HOMEDRIVE'] + os.environ['HOMEPATH'])
-        hpath = hpath.joinpath('.score_fetch', 'act.json')
+        hpath = PurePath(Path.cwd(), '.vars', 'act.json')
         with open(hpath) as file:
             hdata = json.load(file)
         if not validate_keys(hdata, ('url',

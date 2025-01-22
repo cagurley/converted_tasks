@@ -9,13 +9,10 @@ import os
 import pyodbc
 import requests
 import sqlite3
-from pathlib import PurePath
+from pathlib import Path, PurePath
 from support import *
 
-if 'HOME' in os.environ:
-    PATH = PurePath(os.environ['HOME']).joinpath('.orn_fetch')
-else:
-    PATH = PurePath(os.environ['HOMEDRIVE'] + os.environ['HOMEPATH']).joinpath('.orn_fetch')
+PATH = PurePath(Path.cwd(), '.vars')
 with open(PATH.joinpath('groups.json')) as f:
     GDATA = json.load(f)
 

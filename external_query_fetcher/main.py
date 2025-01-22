@@ -14,16 +14,7 @@ def main():
     try:
         # Startup
         cwd = os.getcwd()
-        if 'HOME' in os.environ:
-            root = os.environ['HOME']
-        else:
-            root = os.environ['HOMEDRIVE'] + os.environ['HOMEPATH']
-        rootop1 = os.path.join(root, '.eq_vars')
-        rootop2 = 'C:\\.eq_vars'
-        if os.path.exists(rootop1):
-            root = rootop1
-        else:
-            root = rootop2
+        root = os.path.join(cwd, '.vars')
         with open(os.path.join(root, 'connect.json')) as file:
             connop = json.load(file)
         with open(os.path.join(root, 'qvars.json')) as file:

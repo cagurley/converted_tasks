@@ -7,7 +7,7 @@ import datetime as dt
 import json
 import os
 import requests
-from pathlib import PurePath
+from pathlib import Path, PurePath
 from support import *
 from urllib.parse import urlparse, unquote
 
@@ -21,11 +21,7 @@ def fetch(current):
         with open('sat.dat') as file:
             last = file.readline().strip()
 
-        if 'HOME' in os.environ:
-            hpath = PurePath(os.environ['HOME'])
-        else:
-            hpath = PurePath(os.environ['HOMEDRIVE'] + os.environ['HOMEPATH'])
-        hpath = hpath.joinpath('.score_fetch', 'sat.json')
+        hpath = PurePath(Path.cwd(), '.vars', 'sat.json')
         with open(hpath) as file:
             hdata = json.load(file)
         if not validate_keys(hdata, ('url',

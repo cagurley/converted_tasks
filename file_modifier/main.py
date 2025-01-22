@@ -12,16 +12,7 @@ def main():
     try:
         # Startup
         cwd = os.getcwd()
-        if 'HOME' in os.environ:
-            root = os.environ['HOME']
-        else:
-            root = os.environ['HOMEDRIVE'] + os.environ['HOMEPATH']
-        rootop1 = os.path.join(root, '.fm_args')
-        rootop2 = 'C:\\.fm_args'
-        if os.path.exists(rootop1):
-            root = rootop1
-        else:
-            root = rootop2
+        root = os.path.join(cwd, '.vars')
         with open(os.path.join(root, 'args.dat')) as file:
             fm_args = file.read().strip()
         logfile = os.path.join(cwd, 'log.txt')
